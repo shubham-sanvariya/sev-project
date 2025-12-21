@@ -3,6 +3,9 @@ import {responseFormatter} from "./middleware/responseFormatter.js";
 import {errorHandler} from "./middleware/errorHandler.js";
 import {asyncHandler} from "./utils/asyncHandler.js";
 import database from 'config/db.js'
+import {setupLogger} from "./middleware/logger.js";
+import {requestTracker} from "./middleware/requestTracker.js";
+import {responseTracker} from "./middleware/responseTracker.js";
 
 const app = express();
 
@@ -25,6 +28,11 @@ const startServer = async () => {
         process.exit(1);
     }
 })();
+
+setupLogger(app);
+app.use(requestTracker);
+app.use(responseTracker);
+
 
 app.use(responseFormatter)
 
