@@ -6,12 +6,12 @@ const productSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Product name is required'],
         minLength: [3, 'Product name must be least 3 characters'],
-        maxlength: [100, 'Description cannot exceed 500 characters']
+        maxlength: [100, 'Name cannot exceed 100 characters']
     },
     description: {
         type: String,
         required: [true, 'Product description is required'],
-        minLength: [100, 'Product description must be least 100 characters'],
+        minLength: [50, 'Product description must be least 100 characters'],
         maxlength: [500, 'Description cannot exceed 500 characters']
     },
     weight: {
@@ -46,9 +46,10 @@ const productSchema = new mongoose.Schema({
         required: [true, 'Ingredients list is required']
     },
     images: [{
-        url: String,
-        alt: String
+        url: { type: String, required: true }, // Cloudinary URL
+        alt: { type: String, required: true }  // accessibility text
     }],
+
     stock: {
         type: Number,
         required: true,
@@ -59,7 +60,6 @@ const productSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
-    isVegan: Boolean,
     tags: [String],
     rating: {
         average: { type: Number, default: 0, min: 0, max: 5 },
@@ -71,4 +71,31 @@ const productSchema = new mongoose.Schema({
 
 productSchema.index({ name: "text", description: "text", category: 1, price: 1 })
 
-module.exports = mongoose.model("Product", productSchema)
+productSchema.pre('save', async function () {
+    // Normalize all string fields
+    for (const path in this.schema.paths) {
+        const field = this[path];
+        if (typeof field === 'string') {
+            this[path] = field.trim().replace(/\s+/g, ' ');
+        }
+    }
+
+    // Normalize arrays of strings (tags)
+    if (Array.isArray(this.tags)) {
+        this.tags = this.tags.map(tag =>
+            typeof tag === 'string' ? tag.trim().replace(/\s+/g, ' ') : tag
+        );
+    }
+
+    // Normalize nested objects (images)
+    if (Array.isArray(this.images)) {
+        this.images = this.images.map(img => ({
+            ...img,
+            url: typeof img.url === 'string' ? img.url.trim().replace(/\s+/g, ' ') : img.url,
+            alt: typeof img.alt === 'string' ? img.alt.trim().replace(/\s+/g, ' ') : img.alt,
+        }));
+    }
+});
+
+
+export default mongoose.model("Product", productSchema)
