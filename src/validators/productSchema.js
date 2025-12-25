@@ -1,5 +1,18 @@
 import { z } from "zod";
 
+const imagesSchema = z
+    .array(
+        z.object({
+            originalname: z.string(),
+            mimetype: z.string().regex(/^image\/(jpeg|png|jpg)$/),
+            buffer: z.instanceof(Buffer), // memoryStorage gives you Buffer
+        })
+    )
+    .min(1, "At least 1 image file is required")
+    .max(5, "You can upload up to 5 image files");
+
+
+
 export const productSchema = z.object({
     name: z.string()
         .min(3)
@@ -28,14 +41,7 @@ export const productSchema = z.object({
         .min(5)
         .transform(val => val.trim().replace(/\s+/g, ' ')),
 
-    images: z.array(z.object({
-        url: z.url()
-            .transform(val => val.trim().replace(/\s+/g, ' ')), // normalize URL
-        alt: z.string()
-            .optional()
-            .transform(val => val ? val.trim().replace(/\s+/g, ' ') : val)
-    })).optional(),
-
+    images: imagesSchema,
     stock: z.number().int().nonnegative().default(0),
     isVegetarian: z.boolean().default(true),
 

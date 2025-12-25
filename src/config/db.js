@@ -10,10 +10,7 @@ class Database {
 
         try {
             this.connection = await mongoose.connect(process.env.DB_URL, {
-                useNewUrlParser: true,
-                useUnifiedTopology: true,
                 maxPoolSize: 10, // Connection pooling
-                bufferMaxEntries: 0
             });
 
             console.log('🟢 Database connected successfully');
