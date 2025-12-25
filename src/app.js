@@ -2,17 +2,22 @@ import express from 'express'
 import {responseFormatter} from "./middleware/responseFormatter.js";
 import {errorHandler} from "./middleware/errorHandler.js";
 import {asyncHandler} from "./utils/asyncHandler.js";
-import database from 'config/db.js'
+import database from './config/db.js'
 import {setupLogger} from "./middleware/logger.js";
 import {requestTracker} from "./middleware/requestTracker.js";
 import {responseTracker} from "./middleware/responseTracker.js";
+import router from "./routes/productRoutes.js";
+
+// process.loadEnvFile();
 
 const app = express();
 
+app.use(express.json());
+
 const startServer = async () => {
     await database.connect();
-
-    app.listen(4000, (error) => {
+    const PORT = process.env.PORT;
+    app.listen(PORT, (error) => {
         if (!error)
             console.log(`🚀 Server running on port ${PORT}`);
         else
@@ -33,15 +38,10 @@ setupLogger(app);
 app.use(requestTracker);
 app.use(responseTracker);
 
-
 app.use(responseFormatter)
 
-app.get("/test/api", asyncHandler(async (req,res) => {
-    // db work CRUD if fails global errorHandler will catch it
-    res.sendResponse(200,"hello test req", "success")
-}))
+app.use(router)
 
 app.use(errorHandler)
-
 
 export default app;
