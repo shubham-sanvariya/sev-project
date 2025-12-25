@@ -1,24 +1,22 @@
-export const errorHandler = (err, req, res) => {
+import {ZodError} from "zod";
+
+export const errorHandler = (err, req, res, next) => {
     console.error(err);
 
-    // Default values
-    let statusCode = 500;
-    let message = 'Something went wrong!';
-
-    // Handle specific error types
-    if (err.name === 'ValidationError') {
-        statusCode = 400;
-        message = err.message || 'Invalid data provided';
-    } else if (err.name === 'UnauthorizedError') {
-        statusCode = 401;
-        message = 'Unauthorized access';
-    } else if (err.name === 'TokenExpiredError') {
-        statusCode = 401;
-        message = 'Token expired';
-    } else if (err.code === 'ECONNREFUSED') {
-        statusCode = 503;
-        message = 'Database connection failed';
+    // ✅ Zod validation errors
+    if (err instanceof ZodError) {
+        return res.status(400).json({
+            success: false,
+            error: err.issues.map(issue => ({
+                field: issue.path.join('.'),
+                message: issue.message
+            })),
+            timestamp: new Date().toISOString()
+        });
     }
+
+    const statusCode = err.statusCode || err.status || 500;
+    const message = err.message || 'Something went wrong!';
 
     res.status(statusCode).json({
         success: false,
@@ -26,3 +24,4 @@ export const errorHandler = (err, req, res) => {
         timestamp: new Date().toISOString()
     });
 };
+
