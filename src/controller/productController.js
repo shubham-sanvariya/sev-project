@@ -25,6 +25,9 @@ export const updateProduct = async (req,res) => {
 
     payload.name = handleNameUpdate(payload?.name, oldProduct.name,id,res);
 
+    // Add update timestamp
+    payload.updatedAt = new Date();
+
     const updatedProduct = await Product.findByIdAndUpdate(
         id,
         payload,
@@ -45,7 +48,7 @@ export const updateProduct = async (req,res) => {
     );
 }
 
-export const getAllProducts = async (req,res) => {
+export const getAllProducts = async (_,res) => {
     const products = await Product.find();
 
     return sendResponse(
