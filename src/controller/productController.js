@@ -3,7 +3,55 @@ import {sendResponse} from "../utils/sendResponse.js";
 import {HttpStatusCode} from "axios";
 import {productSchema} from "../validators/productSchema.js";
 import {ResponseType} from "../enum/ReqMessage.js";
-import cloudinary from "../config/cloudinary.js";
+import {
+    getImagesFromFiles,
+    getNormalizedName,
+    imageUploader,
+    validateProductId
+} from "../functions/ProductFun.js";
+
+export const updateProductImages = async (req, res) => {
+    const { id } = req.params;
+    await validateProductId(id,res);
+
+    const files = getImagesFromFiles(req.files);
+
+    if (!files || files.length === 0) {
+        return sendResponse(res, 400, "No images uploaded", ResponseType.FAILED);
+    }
+
+    // Fetch product
+    const oldProduct = await getProductById(id,res);
+
+    // Check existing + new count
+    const existingCount = oldProduct.images?.length || 0;
+    const newCount = files.length;
+    const totalCount = existingCount + newCount;
+
+    if (totalCount > 5) {
+        return sendResponse(
+            res,
+            400,
+            `Image limit exceeded. Current: ${existingCount}, New: ${newCount}, Max allowed: 5`,
+            ResponseType.FAILED
+        );
+    }
+
+    // Upload new images (e.g., Cloudinary)
+    const newImages = await imageUploader(oldProduct.name, files);
+
+// Spread operator ensures each object is added separately
+    oldProduct.images.push(...newImages);
+    oldProduct.updatedAt = new Date();
+    await oldProduct.save();
+
+    return sendResponse(
+        res,
+        200,
+        { message: "Images updated successfully", oldProduct },
+        ResponseType.SUCCESS
+    );
+};
 
 export const updateProduct = async (req,res) => {
     const { id } = req.params;
@@ -23,7 +71,7 @@ export const updateProduct = async (req,res) => {
         );
     }
 
-    payload.name = handleNameUpdate(payload?.name, oldProduct.name,id,res);
+    payload.name = await handleNameUpdate(payload?.name, oldProduct.name,id,res);
 
     // Add update timestamp
     payload.updatedAt = new Date();
@@ -62,11 +110,7 @@ export const getAllProducts = async (_,res) => {
 export const addProduct = async (req,res) => {
     const payload = JSON.parse(req.body.payload);
 
-    const files = req.files.map(file => ({
-        originalname: file.originalname,
-        mimetype: file.mimetype,
-        buffer: file.buffer,
-    }));
+    const files = getImagesFromFiles(req.files)
 
     const currProduct = productSchema.parse({
         ...payload,
@@ -94,52 +138,6 @@ export const addProduct = async (req,res) => {
     return sendResponse(res, HttpStatusCode.Created, savedProduct.toObject(), ResponseType.SUCCESS );
 }
 
-const uploadFromBuffer = (fileBuffer) => {
-    return new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-            { folder: "products", resource_type: "image" },
-            (error, result) => {
-                if (error) reject(error);
-                else resolve(result);
-            }
-        );
-        stream.end(fileBuffer);
-    });
-};
-
-const imageUploader = async (name, reqFiles) => {
-    const results = await Promise.all(reqFiles.map(file => uploadFromBuffer(file.buffer)));
-    return results.map(img => ({
-        url: img.secure_url,
-        alt: name ?? ""
-    }));
-};
-
-const getProductById = async (id,res) => {
-    const existingProduct = await Product.findById(id);
-    if (!existingProduct) {
-        return sendResponse(res, HttpStatusCode.NotFound, "Product not found", ResponseType.FAILED);
-    }
-
-    return existingProduct;
-}
-
-const validateProductId = async (id,res) => {
-    // Validate ID presence and format
-    if (!id) {
-        return sendResponse(res, HttpStatusCode.BadRequest, "Product ID is required", ResponseType.FAILED);
-    }
-
-    if (!/^[0-9a-fA-F]{24}$/.test(id)) {
-        return sendResponse(res, HttpStatusCode.BadRequest, "Invalid product ID format", ResponseType.FAILED);
-    }
-
-}
-
-function getNormalizedName (productName){
-    return productName.charAt(0).toUpperCase() + productName.slice(1).toLowerCase();
-}
-
 const  handleNameUpdate = async (productName, oldProductName,id,res) => {
     if (productName && productName !== oldProductName) {
         const normalizedName = getNormalizedName(productName);
@@ -161,4 +159,13 @@ const  handleNameUpdate = async (productName, oldProductName,id,res) => {
         // validatedData.name = normalizedName;
         return normalizedName;
     }
+}
+
+export const getProductById = async (id,res) => {
+    const existingProduct = await Product.findById(id);
+    if (!existingProduct) {
+        return sendResponse(res, HttpStatusCode.NotFound, "Product not found", ResponseType.FAILED);
+    }
+
+    return existingProduct;
 }
