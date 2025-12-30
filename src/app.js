@@ -6,7 +6,7 @@ import database from './config/db.js'
 import {setupLogger} from "./middleware/logger.js";
 import {requestTracker} from "./middleware/requestTracker.js";
 import {responseTracker} from "./middleware/responseTracker.js";
-import router from "./routes/productRoutes.js";
+import router from "./routes/productRoute.js";
 
 // process.loadEnvFile();
 
