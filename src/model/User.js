@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 const userSchema = new mongoose.Schema({
-    name: {
+    username: {
         type: String,
         required: [true, 'Name is required'],
         trim: true
@@ -14,15 +14,22 @@ const userSchema = new mongoose.Schema({
         lowercase: true,
         match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email']
     },
+    isEmailVerified: { type: Boolean, default: false },
     password: {
         type: String,
         required: [true, 'Password is required'],
-        minlength: [6, 'Password must be at least 6 characters'],
-        select: false
+        minlength: [8, 'Password must be at least 8 characters long'],
+        validate: {
+            validator: function (value) {
+                return /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])/.test(value);
+            },
+            message:
+                'Password must contain at least 1 uppercase letter, 1 number, and 1 special character'
+        },
+        select: false // 👈 IMPORTANT for security
     },
     phone: {
         type: String,
-        required: [true, 'Phone number is required'],
         match: [/^[6-9]\d{9}$/, 'Please enter a valid Indian mobile 10 digit number']
     },
     isPhoneVerified: {
@@ -39,6 +46,7 @@ const userSchema = new mongoose.Schema({
         street: String,
         city: String,
         state: String,
+        areacode: String,
         pincode: String,
         country: { type: String, default: 'India' },
         isDefault: { type: Boolean, default: false }
