@@ -1,6 +1,6 @@
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
 
-export const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
@@ -8,32 +8,22 @@ export const authenticateToken = (req, res, next) => {
         return res.status(401).json({ error: 'Access token required' });
     }
 
-    jwt.verify(
-        token,
-        process.env.JWT_SECRET,
-        {
-            // Optional extra checks
-            algorithms: ['HS256'], // enforce algorithm
-            // issuer: 'your-app-name', // uncomment if you want to check issuer
-            // audience: 'your-app-users', // uncomment if you want to check audience
-        },
-        (err, decoded) => {
-            if (err) {
-                // Differentiate errors
-                if (err.name === 'TokenExpiredError') {
-                    return res.status(401).json({ error: 'Token expired' });
-                }
-                return res.status(403).json({ error: 'Invalid token' });
-            }
-
-            // Check expiration manually (though jwt.verify already does this)
-            if (decoded.exp && Date.now() >= decoded.exp * 1000) {
+    jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
+        if (err) {
+            if (err.name === 'TokenExpiredError') {
                 return res.status(401).json({ error: 'Token expired' });
             }
-
-            // Attach user payload to request
-            req.user = decoded;
-            next();
+            return res.status(403).json({ error: 'Invalid token' });
         }
-    );
+
+        // Check user existence
+        if (!decoded.isActive) {
+            return res.status(403).json({ error: 'User inactive' });
+        }
+
+        req.user = decoded; // already has id, role, etc.
+        next();
+    });
 };
+
+export default authenticateToken;
