@@ -27,12 +27,11 @@ export const signup = async (req,res) => {
     // ✅ Create new user
     const newUser = await User.create(userData);
 
-
     // ✅ Generate Access Token (short-lived)
-    const accessToken = generateAccessToken(newUser._id,newUser.role,res);
+    const accessToken = generateAccessToken(newUser._id,newUser.role);
 
     // ✅ Generate Refresh Token (long-lived)
-    const refreshToken = generateRefreshToken(newUser._id,res);
+    const refreshToken = generateRefreshToken(newUser._id);
 
     res.cookie('accessToken', accessToken, {
         httpOnly: true,

@@ -1,12 +1,12 @@
 import express from 'express'
 import {responseFormatter} from "./middleware/responseFormatter.js";
 import {errorHandler} from "./middleware/errorHandler.js";
-import {asyncHandler} from "./utils/asyncHandler.js";
 import database from './config/db.js'
 import {setupLogger} from "./middleware/logger.js";
 import {requestTracker} from "./middleware/requestTracker.js";
 import {responseTracker} from "./middleware/responseTracker.js";
-import router from "./routes/productRoute.js";
+import productRouter from "./routes/productRoute.js";
+import authRoute from "./routes/authRoute.js"
 
 // process.loadEnvFile();
 
@@ -40,7 +40,8 @@ app.use(responseTracker);
 
 app.use(responseFormatter)
 
-app.use(router)
+app.use(productRouter)
+app.use(authRoute)
 
 app.use(errorHandler)
 
