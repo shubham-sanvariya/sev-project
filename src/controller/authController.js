@@ -7,12 +7,13 @@ import {sendResponse} from "../utils/sendResponse.js";
 import {sendVerificationEmail} from "../utils/emailservice.js";
 
 
-export const login = async (req,res) => {
-    const { email, password } = loginSchema.parse(req.body);
+export const login = async (req, res) => {
+    const {email, password} = loginSchema.parse(req.body);
 
     const existingUser = await getUserByEmail(email);
+
     if (!existingUser) {
-        return sendResponse(res,400,null,'Email is not registered');
+        return sendResponse(res, 400, null, 'Email is not registered');
     }
 
     if (!existingUser.isEmailVerified) {
@@ -23,32 +24,26 @@ export const login = async (req,res) => {
 
 }
 
-export const signup = async (req,res) => {
+export const signup = async (req, res) => {
     const userData = signupSchema.parse(req.body);
-    // ✅ Check if user already exists
+
+    // Check if user already exists
     const existingUser = await getUserByEmail(userData.email);
     if (existingUser) {
-        return sendResponse(res,400,null,'Email already registered');
+        return sendResponse(res, 400, null, 'Email already registered');
     }
 
-    const { token, hashedToken } = generateEmailVerifyToken();
-
-    // ✅ Build user object dynamically (skip phone if not provided)
+    // Create new user
     const newUser = await User.create({
         ...userData,
-        emailVerifyToken: hashedToken,
-        emailVerifyTokenExpiry: Date.now() + 24 * 60 * 60 * 1000 // 24h
+        isEmailVerified: false // ensure consistent field
     });
 
-    const verifyLink = `${process.env.CLIENT_URL}/auth/verify-email/${token}`;
-
-    console.log(`${process.env.CLIENT_URL}/auth/verify-email/${token}`);
-
-    await sendVerificationEmail(userData.email, verifyLink);
-
+    // Issue verification email
+    await issueVerificationEmail(newUser);
 
     // ✅ Generate Access Token (short-lived)
-    const accessToken = generateAccessToken(newUser._id,newUser.role);
+    const accessToken = generateAccessToken(newUser._id, newUser.role);
 
     // ✅ Generate Refresh Token (long-lived)
     const refreshToken = generateRefreshToken(newUser._id);
@@ -67,11 +62,11 @@ export const signup = async (req,res) => {
         maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
-    return sendResponse(res,201,newUser,"User registered successfully")
+    return sendResponse(res, 201, newUser, "User registered successfully")
 }
 
 export const verifyEmail = async (req, res) => {
-    const { token } = req.params;
+    const {token} = req.params;
 
     const hashedToken = crypto
         .createHash('sha256')
@@ -80,11 +75,11 @@ export const verifyEmail = async (req, res) => {
 
     const user = await User.findOne({
         emailVerifyToken: hashedToken,
-        emailVerifyTokenExpiry: { $gt: Date.now() }
+        emailVerifyTokenExpiry: {$gt: Date.now()}
     });
 
     if (!user) {
-        return sendResponse(res,400,null,'Invalid or expired token')
+        return sendResponse(res, 400, null, 'Invalid or expired token')
     }
 
     user.isEmailVerified = true;
@@ -93,27 +88,56 @@ export const verifyEmail = async (req, res) => {
 
     await user.save();
 
-    return sendResponse(res,200,null,'Email verified successfully')
+    return sendResponse(res, 200, null, 'Email verified successfully')
+};
+
+export const resendVerificationEmail = async (req, res) => {
+    const {email} = loginSchema.pick({email: true}).parse(req.body);
+
+    const user = await getUserByEmail(email);
+
+    if (!user) {
+        return sendResponse(res, 404, null, 'User not found');
+    }
+
+    if (user.isEmailVerified) {
+        return sendResponse(res, 400, null, 'Email already verified');
+    }
+
+    // Issue new verification email
+    await issueVerificationEmail(user, res);
+
+    return sendResponse(res, 200, null, 'Verification email sent successfully');
 };
 
 const getUserByEmail = async (email) => {
     return User.findOne({email}).lean();
 }
 
+const issueVerificationEmail = async (user) => {
+    const {token, hashedToken} = generateEmailVerifyToken();
 
-function generateAccessToken (id,role){
+    user.emailVerifyToken = hashedToken;
+    user.emailVerifyTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24h
+    await user.save();
+
+    const verifyLink = `${process.env.CLIENT_URL}/auth/verify-email/${token}`;
+    await sendVerificationEmail(user.email, verifyLink);
+};
+
+function generateAccessToken(id, role) {
     return jwt.sign(
-        { id, role },
+        {id, role},
         process.env.JWT_SECRET,
-        { expiresIn: '15m' } // 15 minutes
+        {expiresIn: '15m'} // 15 minutes
     );
 }
 
-function generateRefreshToken(id){
+function generateRefreshToken(id) {
     return jwt.sign(
-        { id },
+        {id},
         process.env.JWT_REFRESH_SECRET,
-        { expiresIn: '7d' } // 7 days
+        {expiresIn: '7d'} // 7 days
     );
 }
 
@@ -125,6 +149,6 @@ function generateEmailVerifyToken() {
         .update(token)
         .digest('hex');
 
-    return { token, hashedToken };
+    return {token, hashedToken};
 };
 
