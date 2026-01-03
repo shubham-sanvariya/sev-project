@@ -2,6 +2,11 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 const userSchema = new mongoose.Schema({
+    googleId: {
+        type: String,
+        unique: true,
+        sparse: true // allows multiple nulls
+    },
     username: {
         type: String,
         required: [true, 'Name is required'],
@@ -19,7 +24,6 @@ const userSchema = new mongoose.Schema({
     emailVerifyTokenExpiry: Date,
     password: {
         type: String,
-        required: [true, 'Password is required'],
         minlength: [8, 'Password must be at least 8 characters long'],
         validate: {
             validator: function (value) {
@@ -43,6 +47,7 @@ const userSchema = new mongoose.Schema({
         enum: ['user', 'admin'],
         default: 'user'
     },
+    avatar: String, // for google
     addresses: [{
         name: String,
         street: String,
@@ -57,6 +62,11 @@ const userSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Product'
     }],
+    authProvider: {
+        type: String,
+        enum: ['local', 'google'],
+        default: 'local'
+    },
     isActive: {
         type: Boolean,
         default: true
