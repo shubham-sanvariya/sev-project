@@ -11,8 +11,15 @@ import authRoute from "./routes/authRoute.js"
 // process.loadEnvFile();
 
 const app = express();
-
+// stays at the top
 app.use(express.json());
+
+app.use(
+    cors({
+        origin: "http://localhost:5173",
+        credentials: true
+    })
+);
 
 const startServer = async () => {
     await database.connect();

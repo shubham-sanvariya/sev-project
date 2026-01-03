@@ -1,10 +1,16 @@
 import {loginSchema} from "../dto/LoginReq.js";
 import {signupSchema} from "../dto/signupReq.js";
 import User from "../model/User.js";
-import jwt from "jsonwebtoken";
 import crypto from 'crypto';
 import {sendResponse} from "../utils/sendResponse.js";
-import {sendVerificationEmail} from "../utils/emailservice.js";
+import {
+    generateAccessToken,
+    issueVerificationEmail,
+    generateRefreshToken,
+    verifyGoogleToken, setAccessTokenInRes, setRefreshTokenInRes
+} from "../functions/authFn.js";
+import {ResponseType} from "../enum/ReqMessage.js";
+import {userDTO} from "../dto/userDTO.js";
 
 
 export const login = async (req, res) => {
@@ -48,21 +54,70 @@ export const signup = async (req, res) => {
     // ✅ Generate Refresh Token (long-lived)
     const refreshToken = generateRefreshToken(newUser._id);
 
-    res.cookie('accessToken', accessToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production', // only HTTPS in prod
-        sameSite: 'strict',
-        maxAge: 15 * 60 * 1000 // 15 minutes
-    });
+    setAccessTokenInRes(res,accessToken);
 
-    res.cookie('refreshToken', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
-    });
+    setRefreshTokenInRes(res,refreshToken);
 
-    return sendResponse(res, 201, newUser, "User registered successfully")
+    return sendResponse(res, 201, userDTO(newUser), "User registered successfully")
+}
+
+const googleAuth = async (req,res) => {
+    const { credential } = req.body;
+
+    if (!credential) {
+        return res.status(400).json({ message: "Missing credential" });
+    }
+
+    // 1️⃣ Verify token with Google
+    const payload = await verifyGoogleToken(credential);
+
+    const {
+        sub: googleId,
+        email,
+        name,
+        picture
+    } = payload;
+
+    let user = await User.findOne({ googleId });
+    let statusCode = 200;
+
+    if (!user) {
+        // Check if email already exists with local auth
+        const existingEmailUser = getUserByEmail(email);
+
+        if (existingEmailUser) {
+            return sendResponse(
+                res,
+                409,
+                null,
+                "Account exists with email/password. Please link Google login."
+            );
+        }
+
+        user = await User.create({
+            username: name,
+            email,
+            googleId,
+            avatar: picture,
+            authProvider: 'google',
+            isEmailVerified: true // Google already verified it
+        });
+
+        statusCode = 201
+    }
+
+
+    // ✅ Generate Access Token (short-lived)
+    const accessToken = generateAccessToken(newUser._id, newUser.role);
+
+    // ✅ Generate Refresh Token (long-lived)
+    const refreshToken = generateRefreshToken(newUser._id);
+
+    setAccessTokenInRes(res,accessToken);
+
+    setRefreshTokenInRes(res,refreshToken);
+
+    return sendResponse(res, statusCode, userDTO(user), "Google authentication successful")
 }
 
 export const verifyEmail = async (req, res) => {
@@ -105,7 +160,7 @@ export const resendVerificationEmail = async (req, res) => {
     }
 
     // Issue new verification email
-    await issueVerificationEmail(user, res);
+    await issueVerificationEmail(user);
 
     return sendResponse(res, 200, null, 'Verification email sent successfully');
 };
@@ -114,41 +169,4 @@ const getUserByEmail = async (email) => {
     return User.findOne({email}).lean();
 }
 
-const issueVerificationEmail = async (user) => {
-    const {token, hashedToken} = generateEmailVerifyToken();
-
-    user.emailVerifyToken = hashedToken;
-    user.emailVerifyTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24h
-    await user.save();
-
-    const verifyLink = `${process.env.CLIENT_URL}/auth/verify-email/${token}`;
-    await sendVerificationEmail(user.email, verifyLink);
-};
-
-function generateAccessToken(id, role) {
-    return jwt.sign(
-        {id, role},
-        process.env.JWT_SECRET,
-        {expiresIn: '15m'} // 15 minutes
-    );
-}
-
-function generateRefreshToken(id) {
-    return jwt.sign(
-        {id},
-        process.env.JWT_REFRESH_SECRET,
-        {expiresIn: '7d'} // 7 days
-    );
-}
-
-function generateEmailVerifyToken() {
-    const token = crypto.randomBytes(32).toString('hex');
-
-    const hashedToken = crypto
-        .createHash('sha256')
-        .update(token)
-        .digest('hex');
-
-    return {token, hashedToken};
-};
 
