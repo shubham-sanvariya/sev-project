@@ -2,6 +2,8 @@ import {sendVerificationEmail} from "../utils/emailservice.js";
 import jwt from "jsonwebtoken";
 
 import { OAuth2Client } from "google-auth-library";
+import {sendResponse} from "../utils/sendResponse.js";
+import User from "../model/User.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -14,15 +16,33 @@ export async function verifyGoogleToken(idToken) {
     return ticket.getPayload();
 }
 
-export const issueVerificationEmail = async (user) => {
+export const verifyToken = async (token,res) => {
+    const hashedToken = crypto
+        .createHash('sha256')
+        .update(token)
+        .digest('hex');
+
+    const user = await User.findOne({
+        emailVerifyToken: hashedToken,
+        emailVerifyTokenExpiry: {$gt: Date.now()}
+    });
+
+    if (!user) {
+        return sendResponse(res, 400, null, 'Invalid or expired token')
+    }
+
+    return user;
+}
+
+export const issueVerificationEmail = async (user,uri) => {
     const {token, hashedToken} = generateEmailVerifyToken();
 
     user.emailVerifyToken = hashedToken;
     user.emailVerifyTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24h
     await user.save();
 
-    const verifyLink = `${process.env.CLIENT_URL}/auth/verify-email/${token}`;
-    await sendVerificationEmail(user.email, verifyLink);
+    const verifyLink = `${process.env.CLIENT_URL}/auth/${uri}/${token}`;
+    await sendVerificationEmail(user.email, verifyLink,uri);
 };
 
 export function generateAccessToken(id, role) {
