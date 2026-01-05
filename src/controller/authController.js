@@ -1,16 +1,15 @@
 import {loginSchema} from "../dto/LoginReq.js";
 import {signupSchema} from "../dto/signupReq.js";
 import User from "../model/User.js";
-import crypto from 'crypto';
 import {sendResponse} from "../utils/sendResponse.js";
 import {
     generateAccessToken,
     issueVerificationEmail,
     generateRefreshToken,
-    verifyGoogleToken, setAccessTokenInRes, setRefreshTokenInRes
+    verifyGoogleToken, setAccessTokenInRes, setRefreshTokenInRes, verifyToken
 } from "../functions/authFn.js";
-import {ResponseType} from "../enum/ReqMessage.js";
 import {userDTO} from "../dto/userDTO.js";
+import bcrypt from "bcryptjs";
 
 
 export const login = async (req, res) => {
@@ -27,6 +26,35 @@ export const login = async (req, res) => {
             message: 'Please verify your email first'
         });
     }
+
+    // 🔐 Compare password
+    const isPasswordValid = await bcrypt.compare(
+        password,
+        existingUser.password
+    );
+
+    if (!isPasswordValid) {
+        return sendResponse(res, 400, null, 'Invalid email or password');
+    }
+
+    // ✅ Generate tokens
+    const accessToken = generateAccessToken(
+        existingUser._id,
+        existingUser.role
+    );
+
+    const refreshToken = generateRefreshToken(existingUser._id);
+
+    // 🍪 Set cookies
+    setAccessTokenInRes(res, accessToken);
+    setRefreshTokenInRes(res, refreshToken);
+
+    return sendResponse(
+        res,
+        200,
+        userDTO(existingUser),
+        'Login successful'
+    );
 
 }
 
@@ -46,7 +74,7 @@ export const signup = async (req, res) => {
     });
 
     // Issue verification email
-    await issueVerificationEmail(newUser);
+    await issueVerificationEmail(newUser,"verify-email");
 
     // ✅ Generate Access Token (short-lived)
     const accessToken = generateAccessToken(newUser._id, newUser.role);
@@ -61,7 +89,7 @@ export const signup = async (req, res) => {
     return sendResponse(res, 201, userDTO(newUser), "User registered successfully")
 }
 
-const googleAuth = async (req,res) => {
+export const googleAuth = async (req,res) => {
     const { credential } = req.body;
 
     if (!credential) {
@@ -120,22 +148,27 @@ const googleAuth = async (req,res) => {
     return sendResponse(res, statusCode, userDTO(user), "Google authentication successful")
 }
 
+export const resetPassword = async (req,res) => {
+    const {token} = req.params;
+
+    const { password } = loginSchema.pick({ password: true}).parse(req.body);
+
+
+    const user = await verifyToken(token,res);
+
+    user.password = password;
+    user.emailVerifyToken = undefined;
+    user.emailVerifyTokenExpiry = undefined;
+
+    await user.save();
+
+    return sendResponse(res, 200, null, 'Password reset successful');
+}
+
 export const verifyEmail = async (req, res) => {
     const {token} = req.params;
 
-    const hashedToken = crypto
-        .createHash('sha256')
-        .update(token)
-        .digest('hex');
-
-    const user = await User.findOne({
-        emailVerifyToken: hashedToken,
-        emailVerifyTokenExpiry: {$gt: Date.now()}
-    });
-
-    if (!user) {
-        return sendResponse(res, 400, null, 'Invalid or expired token')
-    }
+    const user = await verifyToken(token,res);
 
     user.isEmailVerified = true;
     user.emailVerifyToken = undefined;
@@ -151,8 +184,14 @@ export const resendVerificationEmail = async (req, res) => {
 
     const user = await getUserByEmail(email);
 
+    // Always return success to avoid email enumeration attacks
     if (!user) {
-        return sendResponse(res, 404, null, 'User not found');
+        return sendResponse(
+            res,
+            200,
+            null,
+            'If an account exists, a password reset email has been sent'
+        );
     }
 
     if (user.isEmailVerified) {
@@ -160,7 +199,7 @@ export const resendVerificationEmail = async (req, res) => {
     }
 
     // Issue new verification email
-    await issueVerificationEmail(user);
+    await issueVerificationEmail(user,"verify-email");
 
     return sendResponse(res, 200, null, 'Verification email sent successfully');
 };
