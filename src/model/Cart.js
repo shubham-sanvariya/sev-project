@@ -7,8 +7,15 @@ const cartItemSchema = new mongoose.Schema({
         required: true
     },
     selectedWeight: {
-        value: Number,
-        unit: String
+        value: {
+            type: Number,
+            required: true
+        },
+        unit: {
+            type: String,
+            enum: ['gm', 'kg'],
+            required: true
+        }
     },
     quantity: {
         type: Number,
