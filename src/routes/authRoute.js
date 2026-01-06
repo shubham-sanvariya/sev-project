@@ -1,6 +1,13 @@
 import express from "express";
 import {asyncHandler} from "../utils/asyncHandler.js";
-import {googleAuth, login, resendVerificationEmail, signup, verifyEmail} from "../controller/authController.js";
+import {
+    googleAuth,
+    login,
+    resendVerificationEmail,
+    resetPassword,
+    signup,
+    verifyEmail
+} from "../controller/authController.js";
 import {resendLimiter} from "../middleware/reqLimiter.js";
 
 
@@ -18,7 +25,7 @@ router.post('/resend-verification', resendLimiter, asyncHandler(resendVerificati
 
 router.post("/auth/google",asyncHandler(googleAuth))
 
-router.post('/auth/forgot-password', requestPasswordReset);
+router.post('/auth/forgot-password', asyncHandler(verifyEmail));
 router.post('/auth/reset-password/:token', resetPassword);
 
 
