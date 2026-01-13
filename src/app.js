@@ -7,6 +7,8 @@ import {requestTracker} from "./middleware/requestTracker.js";
 import {responseTracker} from "./middleware/responseTracker.js";
 import productRouter from "./routes/productRoute.js";
 import authRoute from "./routes/authRoute.js"
+import cartRoutes from "./routes/cartRoutes.js";
+import cors from 'cors'
 
 // process.loadEnvFile();
 
@@ -47,8 +49,9 @@ app.use(responseTracker);
 
 app.use(responseFormatter)
 
-app.use(productRouter)
 app.use(authRoute)
+app.use(productRouter)
+app.use(cartRoutes)
 
 app.use(errorHandler)
 
