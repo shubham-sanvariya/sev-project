@@ -7,3 +7,5 @@ const router = express.Router();
 router.post("/cart/add",asyncHandler(addToCart));
 
 router.delete("/cart/remove",asyncHandler(removeFromCart));
+
+export default router;

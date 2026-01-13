@@ -53,4 +53,12 @@ export const productSchema = z.object({
         average: z.number().min(0).max(5).default(0),
         count: z.number().int().nonnegative().default(0)
     }).optional()
-});
+}).refine(
+    (data) =>
+        data.discountedPrice === undefined ||
+        data.discountedPrice <= data.price,
+    {
+        message: 'Discounted price cannot be greater than actual price',
+        path: ['discountedPrice'],
+    }
+);

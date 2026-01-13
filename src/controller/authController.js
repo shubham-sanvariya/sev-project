@@ -6,7 +6,7 @@ import {
     generateAccessToken,
     issueVerificationEmail,
     generateRefreshToken,
-    verifyGoogleToken, setAccessTokenInRes, setRefreshTokenInRes, verifyToken
+    verifyGoogleToken, setAccessTokenInRes, setRefreshTokenInRes, verifyEmailToken
 } from "../functions/authFn.js";
 import {userDTO} from "../dto/userDTO.js";
 import bcrypt from "bcryptjs";
@@ -15,7 +15,8 @@ import bcrypt from "bcryptjs";
 export const login = async (req, res) => {
     const {email, password} = loginSchema.parse(req.body);
 
-    const existingUser = await getUserByEmail(email);
+    const existingUser = await User.findOne({ email }).select('+password');
+
 
     if (!existingUser) {
         return sendResponse(res, 400, null, 'Email is not registered');
@@ -154,7 +155,7 @@ export const resetPassword = async (req,res) => {
     const { password } = loginSchema.pick({ password: true}).parse(req.body);
 
 
-    const user = await verifyToken(token,res);
+    const user = await verifyEmailToken(token,res);
 
     user.password = password;
     user.emailVerifyToken = undefined;
@@ -168,7 +169,7 @@ export const resetPassword = async (req,res) => {
 export const verifyEmail = async (req, res) => {
     const {token} = req.params;
 
-    const user = await verifyToken(token,res);
+    const user = await verifyEmailToken(token,res);
 
     user.isEmailVerified = true;
     user.emailVerifyToken = undefined;
