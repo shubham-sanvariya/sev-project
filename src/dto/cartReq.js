@@ -18,6 +18,6 @@ export const cartSchema = z.object({
         value: z
             .number()
             .positive('Weight value must be greater than 0'),
-        unit: z.enum(['gm', 'kg'])
+        unit: z.enum(['g', 'kg'])
     })
 });
