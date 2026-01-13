@@ -1,6 +1,8 @@
 import jwt from 'jsonwebtoken';
+import {sendResponse} from "../utils/sendResponse.js";
+import {HttpStatusCode} from "axios";
 
-const authenticateToken = async (req, res, next) => {
+export const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
@@ -11,19 +13,36 @@ const authenticateToken = async (req, res, next) => {
     jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
         if (err) {
             if (err.name === 'TokenExpiredError') {
-                return res.status(401).json({ error: 'Token expired' });
+                return sendResponse(res,HttpStatusCode.Unauthorized,null,'Token expired, Please login again')
             }
-            return res.status(403).json({ error: 'Invalid token' });
+            return sendResponse(res,HttpStatusCode.Forbidden,null,'Invalid token')
         }
 
-        // Check user existence
-        if (!decoded.isActive) {
-            return res.status(403).json({ error: 'User inactive' });
-        }
+        // // Check user existence
+        // if (!decoded.isActive) {
+        //     return res.status(403).json({ error: 'User inactive' });
+        // }
 
         req.user = decoded; // already has id, role, etc.
         next();
     });
 };
 
-export default authenticateToken;
+export const optionalAuthToken = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+
+    // 1️⃣ No token → true guest
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return next();
+    }
+
+    const token = authHeader.split(" ")[1];
+
+    try {
+        req.user = jwt.verify(token, process.env.JWT_SECRET); // { id, role, ... }
+        return next();
+    } catch (err) {
+        // 2️⃣ Token exists but invalid/expired → NOT a guest
+        return sendResponse(res,HttpStatusCode.Unauthorized,null,"Session expired. Please login again.")
+    }
+};

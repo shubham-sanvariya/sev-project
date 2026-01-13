@@ -1,6 +1,6 @@
 import {sendVerificationEmail} from "../utils/emailservice.js";
 import jwt from "jsonwebtoken";
-
+import crypto from "crypto";
 import { OAuth2Client } from "google-auth-library";
 import {sendResponse} from "../utils/sendResponse.js";
 import User from "../model/User.js";
@@ -16,7 +16,7 @@ export async function verifyGoogleToken(idToken) {
     return ticket.getPayload();
 }
 
-export const verifyToken = async (token,res) => {
+export const verifyEmailToken = async (token, res) => {
     const hashedToken = crypto
         .createHash('sha256')
         .update(token)
@@ -57,7 +57,7 @@ export function setAccessTokenInRes(res,accessToken){
     res.cookie('accessToken', accessToken, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production', // only HTTPS in prod
-        sameSite: 'strict',
+        sameSite: 'lax',
         maxAge: 15 * 60 * 1000 // 15 minutes
     });
 }
