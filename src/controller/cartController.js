@@ -6,51 +6,53 @@ import {HttpStatusCode} from "axios";
 
 
 export const addToCart = async (req, res) => {
-    const userId = req?.user?.id; // 🔥 access token id
+    const userId = req?.user?.id; // access token id
     const {productId, quantity, selectedWeight} =
         cartSchema.parse(req.body);
-    if (userId) {
-        const product = await Product.findById(productId);
-        if (!product) {
-            return sendResponse(res, 404, null, 'Product not found');
-        }
+    if (!userId) return sendResponse(res,HttpStatusCode.Ok,req.body,'add product to local cart');
 
-        const cart = await Cart.findOne({user: req.user.id})
-            || await Cart.create({user: req.user.id});
-
-        const existingItem = cart.items.find(
-            item =>
-                item.product.toString() === productId &&
-                item.selectedWeight.value === selectedWeight.value &&
-                item.selectedWeight.unit === selectedWeight.unit
-        );
-
-        if (existingItem) {
-            existingItem.quantity += quantity;
-        } else {
-            cart.items.push({
-                product: product._id,
-                quantity,
-                selectedWeight,
-                price: product.price
-            });
-        }
-
-        const {totalItems, totalPrice} = calculateCartItems(cart.items);
-
-        cart.totalItems = totalItems;
-
-        cart.totalPrice = totalPrice;
-
-        await cart.save();
-
-        return sendResponse(res, 200, cart, 'Product added to cart');
-    }else {
-        return sendResponse(res,200,req.body,'add product to local cart');
+    const product = await Product.findById(productId);
+    if (!product) {
+        return sendResponse(res, 404, null, 'Product not found');
     }
+
+    const cart = await Cart.findOne({user: req.user.id})
+        || await Cart.create({user: req.user.id});
+
+    const existingItem = cart.items.find(
+        item =>
+            item.product.toString() === productId &&
+            item.selectedWeight.value === selectedWeight.value &&
+            item.selectedWeight.unit === selectedWeight.unit
+    );
+
+    if (existingItem) {
+        existingItem.quantity += quantity;
+    } else {
+        cart.items.push({
+            product: product._id,
+            quantity,
+            selectedWeight,
+            price: product.price
+        });
+    }
+
+    const {totalItems, totalPrice} = calculateCartItems(cart.items);
+
+    cart.totalItems = totalItems;
+
+    cart.totalPrice = totalPrice;
+
+    await cart.save();
+
+    return sendResponse(res, HttpStatusCode.Ok, cart, 'Product added to cart');
 }
 
 export const removeFromCart = async (req, res) => {
+    const userId = req?.user?.id; // access token id
+
+    if (!userId) return sendResponse(res, HttpStatusCode.Ok, req.body, 'remove product from local cart')
+
     const {productId, selectedWeight} =
         cartSchema.pick({productId: true, selectedWeight: true}).parse(req.body);
 
